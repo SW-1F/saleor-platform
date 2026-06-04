@@ -36,8 +36,8 @@ export PATH="$HOME/.local/bin:$PATH"
 ```
 Calidad_de_Software/
 ├── saleor-platform/       # Orquestador Docker (docker-compose.yml)
-├── saleor/                # Código fuente del Backend (Python/Django)
-└── saleor-dashboard/      # Código fuente del Frontend (React/TypeScript)
+    ├── saleor/                # Código fuente del Backend (Python/Django)
+    └── saleor-dashboard/      # Código fuente del Frontend (React/TypeScript)
 ```
 
 ---
@@ -48,8 +48,6 @@ Calidad_de_Software/
 
 ```bash
 git clone git@github.com:SW-1F/saleor-platform.git
-git clone https://github.com/saleor/saleor.git
-git clone https://github.com/saleor/saleor-dashboard.git
 ```
 
 ### 2. Instalar dependencias del Backend

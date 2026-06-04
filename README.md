@@ -22,11 +22,14 @@ saleor-platform/             ← raíz del repositorio
 
 | Herramienta | Versión mínima | Verificar con |
 |-------------|---------------|---------------|
-| **Docker Engine** | 24+ | `docker --version` |
+| **Docker Engine / Desktop** | 24+ | `docker --version` |
 | **Docker Compose** | v2+ | `docker compose version` |
-| **uv** (gestor Python) | 0.11+ | `~/.local/bin/uv --version` |
+| **uv** (gestor Python) | 0.11+ | `uv --version` |
 | **Node.js** | 22+ | `node --version` |
 | **npm** | 11+ | `npm --version` |
+
+> [!NOTE]
+> **Recomendación para Windows:** Se recomienda utilizar **Git Bash** como tu terminal para poder ejecutar la mayoría de comandos de tipo bash directamente. Asegúrate de instalar **Docker Desktop** y activar la integración con **WSL 2**.
 
 > [!WARNING]
 > En **Linux** (Fedora, Ubuntu, etc.) utiliza el **Docker Engine nativo**, no Docker Desktop.
@@ -38,16 +41,26 @@ saleor-platform/             ← raíz del repositorio
 
 ### Instalación de uv (solo la primera vez)
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+- **Linux / macOS (Bash/Zsh):**
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  Para que `uv` funcione permanentemente, agrega esta línea al final de tu `~/.bashrc` o `~/.zshrc`:
+  ```bash
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+  source ~/.zshrc
+  ```
 
-Para que `uv` funcione permanentemente, agrega esta línea al final de tu `~/.bashrc` o `~/.zshrc`:
+- **Windows (PowerShell):**
+  ```powershell
+  powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+  *Nota: Reinicia la terminal después de la instalación para que reconozca el comando `uv`.*
 
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
-source ~/.zshrc
-```
+- **Windows (Alternativa con winget):**
+  ```cmd
+  winget install astral-uv
+  ```
 
 ---
 
@@ -70,9 +83,14 @@ uv sync
 
 Crear el archivo `.env`:
 
-```bash
-cp .env.example .env
-```
+- **Linux / macOS (o Git Bash):**
+  ```bash
+  cp .env.example .env
+  ```
+- **Windows (PowerShell / CMD):**
+  ```cmd
+  copy .env.example .env
+  ```
 
 Editar `.env` y asegurarse de que contenga estas líneas (añadir las que falten):
 
@@ -91,10 +109,28 @@ DEBUG=True
 
 ### 3. Instalar dependencias del Frontend
 
+Desde la raíz del repo (`saleor-platform/`), ve a la carpeta del dashboard e instala las dependencias:
+
+- **Linux / macOS (o Git Bash en Windows):**
+  ```bash
+  cd ../saleor-dashboard
+  HUSKY=0 npm install --legacy-peer-deps
+  ```
+- **Windows (PowerShell):**
+  ```powershell
+  cd ../saleor-dashboard
+  $env:HUSKY=0
+  npm install --legacy-peer-deps
+  ```
+- **Windows (CMD):**
+  ```cmd
+  cd ../saleor-dashboard
+  set HUSKY=0
+  npm install --legacy-peer-deps
+  ```
+
+Luego, instala los iconos e interfaz de Material-UI (aplica para cualquier plataforma):
 ```bash
-# Desde la raíz del repo (saleor-platform/)
-cd ../saleor-dashboard
-HUSKY=0 npm install --legacy-peer-deps
 npm install --legacy-peer-deps @material-ui/icons@4.11.3 @material-ui/lab@4.0.0-alpha.61
 ```
 

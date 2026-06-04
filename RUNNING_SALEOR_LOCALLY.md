@@ -9,7 +9,7 @@ y la infraestructura (BD, caché, correo) corre **desde Docker**.
 ## Estructura del Proyecto
 
 ```
-saleor-platform/
+saleor-platform/             ← raíz del repositorio
 ├── saleor/                  ← Código fuente del Backend (Python/Django/GraphQL)
 ├── saleor-dashboard/        ← Código fuente del Frontend (React/TypeScript)
 ├── docker-compose.yml       ← Infraestructura: PostgreSQL, Redis, Mailpit
@@ -24,7 +24,7 @@ saleor-platform/
 |-------------|---------------|---------------|
 | **Docker Engine** | 24+ | `docker --version` |
 | **Docker Compose** | v2+ | `docker compose version` |
-| **uv** (gestor Python) | 0.11+ | `uv --version` |
+| **uv** (gestor Python) | 0.11+ | `~/.local/bin/uv --version` |
 | **Node.js** | 22+ | `node --version` |
 | **npm** | 11+ | `npm --version` |
 
@@ -40,7 +40,13 @@ saleor-platform/
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
+```
+
+Para que `uv` funcione permanentemente, agrega esta línea al final de tu `~/.bashrc` o `~/.zshrc`:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 ---
@@ -62,13 +68,13 @@ uv python install 3.12
 uv sync
 ```
 
-Crear el archivo `.env` copiando el ejemplo y añadiendo las variables necesarias:
+Crear el archivo `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Luego editar `.env` y asegurarse de que contenga estas líneas:
+Editar `.env` y asegurarse de que contenga estas líneas (añadir las que falten):
 
 ```env
 CACHE_URL=redis://localhost:6379/0
@@ -86,21 +92,25 @@ DEBUG=True
 ### 3. Instalar dependencias del Frontend
 
 ```bash
+# Desde la raíz del repo (saleor-platform/)
 cd ../saleor-dashboard
-npm install --legacy-peer-deps
+HUSKY=0 npm install --legacy-peer-deps
 npm install --legacy-peer-deps @material-ui/icons@4.11.3 @material-ui/lab@4.0.0-alpha.61
 ```
+
+> [!NOTE]
+> `HUSKY=0` desactiva los git hooks de Husky durante la instalación.
+> Es necesario porque `saleor-dashboard` ya no tiene su propio repositorio git independiente.
 
 ### 4. Levantar infraestructura y migrar la base de datos
 
 ```bash
-# Desde la raíz del proyecto
+# Desde la raíz del repo (saleor-platform/)
 cd ..
 docker compose up -d db cache mailpit
 
-# Migrar y poblar la base de datos (volver a saleor/)
+# Migrar y poblar la base de datos
 cd saleor
-export PATH="$HOME/.local/bin:$PATH"
 uv run poe migrate
 uv run poe populatedb
 ```
@@ -114,7 +124,7 @@ uv run poe populatedb
 
 ## Encender Todos los Servicios (día a día)
 
-Ejecuta estos comandos **en orden**, cada uno en una terminal separada:
+Cada vez que quieras trabajar, abre **3 terminales** y ejecuta:
 
 ### Terminal 1 — Infraestructura (Docker)
 
@@ -132,7 +142,6 @@ Levanta:
 
 ```bash
 cd saleor-platform/saleor
-export PATH="$HOME/.local/bin:$PATH"
 uv run poe start
 ```
 
@@ -176,10 +185,10 @@ VITE ready in XXX ms
 ## Apagar Todo
 
 ```bash
-# En Terminal 3 (Dashboard):   Ctrl+C
-# En Terminal 2 (Backend):     Ctrl+C
+# Terminal 3 (Dashboard):   Ctrl+C
+# Terminal 2 (Backend):     Ctrl+C
 
-# En Terminal 1 (Infraestructura):
+# Terminal 1 (Infraestructura):
 cd saleor-platform
 docker compose stop
 ```
@@ -188,28 +197,42 @@ docker compose stop
 
 ## Troubleshooting
 
+### `error: Failed to spawn: 'poe'`
+El binario `uv` no está en el PATH. Ejecútalo directamente con su ruta o agrega al PATH:
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+uv run poe start
+```
+Para no repetirlo cada vez, agrégalo permanentemente a `~/.zshrc` o `~/.bashrc`:
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
+### `husky - .git can't be found`
+Usa la variable `HUSKY=0` al instalar:
+```bash
+HUSKY=0 npm install --legacy-peer-deps
+```
+
 ### `no configuration file provided: not found`
-Estás ejecutando `docker compose` desde una carpeta incorrecta.
-El archivo `docker-compose.yml` está en la **raíz** de `saleor-platform/`:
+El `docker-compose.yml` está en la **raíz** de `saleor-platform/`.
+Asegúrate de estar ahí antes de ejecutar docker compose:
 ```bash
 cd saleor-platform
 docker compose up -d db cache mailpit
 ```
 
 ### `Address already in use` al iniciar el Backend
-El puerto 8000 está ocupado por otro proceso. Identifícalo y detenlo:
+El puerto 8000 está ocupado. Detén los contenedores que puedan usarlo:
 ```bash
-# Ver qué ocupa el puerto 8000
-lsof -i :8000
-# O detener contenedores Docker que puedan estar usándolo
 docker ps | grep 8000
 docker stop <nombre-del-contenedor>
 ```
 
-### `ERESOLVE` al hacer `npm install` en el Dashboard
-Usa la flag `--legacy-peer-deps`:
+### `ERESOLVE` al hacer `npm install`
+Usa `--legacy-peer-deps`:
 ```bash
-npm install --legacy-peer-deps
+HUSKY=0 npm install --legacy-peer-deps
 ```
 
 ### `signal: aborted (core dumped)` en Docker (Linux)
@@ -222,9 +245,6 @@ docker context use default
 Verifica que el contenedor de PostgreSQL está corriendo:
 ```bash
 docker ps | grep db
-```
-Si no aparece, levántalo con:
-```bash
-cd saleor-platform
-docker compose up -d db
+# Si no aparece:
+cd saleor-platform && docker compose up -d db
 ```

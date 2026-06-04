@@ -1,0 +1,42 @@
+services:
+  db:
+    image: library/postgres:15-alpine
+    ports:
+      - 5432:5432
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    volumes:
+      - saleor-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=saleor
+      - POSTGRES_PASSWORD=saleor
+
+  cache:
+    image: valkey/valkey:8.1-alpine
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    volumes:
+      - saleor-cache:/data
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - 1025:1025
+      - 8025:8025
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+
+volumes:
+  saleor-db:
+    driver: local
+  saleor-cache:
+    driver: local
+
+networks:
+  saleor-backend-tier:
+    driver: bridge

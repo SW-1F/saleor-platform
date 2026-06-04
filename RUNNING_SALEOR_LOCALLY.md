@@ -1,8 +1,20 @@
 # Guía de Ejecución Local: Saleor Platform (Código Fuente)
 
-Este documento describe cómo levantar **todos los servicios de Saleor** localmente,
-ejecutando el Backend y el Dashboard **desde el código fuente** (con live reload)
-y la infraestructura (BD, caché, correo) **desde Docker**.
+Este documento describe cómo levantar **todos los servicios de Saleor** localmente.
+El Backend y el Dashboard corren **desde el código fuente** (con live reload),
+y la infraestructura (BD, caché, correo) corre **desde Docker**.
+
+---
+
+## Estructura del Proyecto
+
+```
+saleor-platform/
+├── saleor/                  ← Código fuente del Backend (Python/Django/GraphQL)
+├── saleor-dashboard/        ← Código fuente del Frontend (React/TypeScript)
+├── docker-compose.yml       ← Infraestructura: PostgreSQL, Redis, Mailpit
+└── RUNNING_SALEOR_LOCALLY.md
+```
 
 ---
 
@@ -19,37 +31,27 @@ y la infraestructura (BD, caché, correo) **desde Docker**.
 > [!WARNING]
 > En **Linux** (Fedora, Ubuntu, etc.) utiliza el **Docker Engine nativo**, no Docker Desktop.
 > Docker Desktop usa una VM (QEMU) que puede quedarse sin memoria y causar crashes.
-> Cambia al contexto nativo con: `docker context use default`
+> Cambia al contexto nativo con:
+> ```bash
+> docker context use default
+> ```
 
-### Instalación de herramientas (solo la primera vez)
+### Instalación de uv (solo la primera vez)
 
 ```bash
-# Instalar uv (gestor de Python)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ---
 
-## Estructura del Proyecto
-
-```
-Calidad_de_Software/
-├── saleor-platform/       # Orquestador Docker (docker-compose.yml)
-├── saleor/                # Código fuente del Backend (Python/Django)
-└── saleor-dashboard/      # Código fuente del Frontend (React/TypeScript)
-```
-
----
-
 ## Primer Setup (solo una vez)
 
-### 1. Clonar los repositorios
+### 1. Clonar el repositorio
 
 ```bash
 git clone git@github.com:SW-1F/saleor-platform.git
-git clone https://github.com/saleor/saleor.git
-git clone https://github.com/saleor/saleor-dashboard.git
+cd saleor-platform
 ```
 
 ### 2. Instalar dependencias del Backend
@@ -58,13 +60,25 @@ git clone https://github.com/saleor/saleor-dashboard.git
 cd saleor
 uv python install 3.12
 uv sync
+```
+
+Crear el archivo `.env` copiando el ejemplo y añadiendo las variables necesarias:
+
+```bash
 cp .env.example .env
 ```
 
-Editar el archivo `.env` y agregar estas líneas adicionales:
+Luego editar `.env` y asegurarse de que contenga estas líneas:
 
 ```env
+CACHE_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/1
 DATABASE_URL=postgres://saleor:saleor@localhost:5432/saleor
+DEFAULT_FROM_EMAIL=noreply@example.com
+EMAIL_URL=smtp://localhost:1025
+SECRET_KEY=changeme
+HTTP_IP_FILTER_ALLOW_LOOPBACK_IPS=True
+DASHBOARD_URL=http://localhost:9000/
 ALLOWED_HOSTS=localhost,127.0.0.1
 DEBUG=True
 ```
@@ -72,20 +86,21 @@ DEBUG=True
 ### 3. Instalar dependencias del Frontend
 
 ```bash
-cd saleor-dashboard
+cd ../saleor-dashboard
 npm install --legacy-peer-deps
 npm install --legacy-peer-deps @material-ui/icons@4.11.3 @material-ui/lab@4.0.0-alpha.61
 ```
 
-### 4. Levantar infraestructura y migrar la BD
+### 4. Levantar infraestructura y migrar la base de datos
 
 ```bash
-# Levantar PostgreSQL, Redis y Mailpit
-cd saleor-platform
+# Desde la raíz del proyecto
+cd ..
 docker compose up -d db cache mailpit
 
-# Migrar y poblar la base de datos
-cd ../saleor
+# Migrar y poblar la base de datos (volver a saleor/)
+cd saleor
+export PATH="$HOME/.local/bin:$PATH"
 uv run poe migrate
 uv run poe populatedb
 ```
@@ -99,31 +114,29 @@ uv run poe populatedb
 
 ## Encender Todos los Servicios (día a día)
 
-Cada vez que quieras trabajar con el proyecto, ejecuta estos comandos en orden:
+Ejecuta estos comandos **en orden**, cada uno en una terminal separada:
 
-### Paso 1 — Infraestructura (Docker)
+### Terminal 1 — Infraestructura (Docker)
 
 ```bash
 cd saleor-platform
 docker compose up -d db cache mailpit
 ```
 
-Esto levanta:
+Levanta:
 - **PostgreSQL** en `localhost:5432`
 - **Redis** en `localhost:6379`
-- **Mailpit** en `http://localhost:8025`
+- **Mailpit** en http://localhost:8025
 
-### Paso 2 — Backend (API GraphQL)
-
-Abre una **terminal nueva** y ejecuta:
+### Terminal 2 — Backend (API GraphQL)
 
 ```bash
-cd saleor
+cd saleor-platform/saleor
 export PATH="$HOME/.local/bin:$PATH"
 uv run poe start
 ```
 
-Espera a ver el mensaje:
+Espera a ver:
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 INFO:     Application startup complete.
@@ -131,19 +144,16 @@ INFO:     Application startup complete.
 
 ✅ API disponible en **http://localhost:8000/graphql/**
 
-### Paso 3 — Frontend (Dashboard)
-
-Abre **otra terminal nueva** y ejecuta:
+### Terminal 3 — Frontend (Dashboard)
 
 ```bash
-cd saleor-dashboard
+cd saleor-platform/saleor-dashboard
 npm run dev
 ```
 
-Espera a ver el mensaje:
+Espera a ver:
 ```
 VITE ready in XXX ms
-
   ➜  Local:   http://localhost:9000/
 ```
 
@@ -155,8 +165,8 @@ VITE ready in XXX ms
 
 | Servicio | URL | Tipo |
 |----------|-----|------|
-| **Dashboard** | http://localhost:9000 | Frontend (código fuente) |
-| **API GraphQL** | http://localhost:8000/graphql/ | Backend (código fuente) |
+| **Dashboard** | http://localhost:9000 | Frontend (código fuente, live reload) |
+| **API GraphQL** | http://localhost:8000/graphql/ | Backend (código fuente, live reload) |
 | **Mailpit** | http://localhost:8025 | Docker |
 
 **Credenciales de administrador:** `admin@example.com` / `admin`
@@ -166,10 +176,10 @@ VITE ready in XXX ms
 ## Apagar Todo
 
 ```bash
-# En la terminal del Dashboard: presiona Ctrl+C
-# En la terminal del Backend: presiona Ctrl+C
+# En Terminal 3 (Dashboard):   Ctrl+C
+# En Terminal 2 (Backend):     Ctrl+C
 
-# Detener la infraestructura Docker:
+# En Terminal 1 (Infraestructura):
 cd saleor-platform
 docker compose stop
 ```
@@ -178,19 +188,31 @@ docker compose stop
 
 ## Troubleshooting
 
-### Error `Address already in use` al iniciar el Backend
-Los contenedores pre-compilados de `api` o `dashboard` siguen corriendo. Detenlos:
+### `no configuration file provided: not found`
+Estás ejecutando `docker compose` desde una carpeta incorrecta.
+El archivo `docker-compose.yml` está en la **raíz** de `saleor-platform/`:
 ```bash
-docker stop saleor-platform-api-1 saleor-platform-worker-1 saleor-platform-dashboard-1
+cd saleor-platform
+docker compose up -d db cache mailpit
 ```
 
-### Error `ERESOLVE` al hacer `npm install` en el Dashboard
+### `Address already in use` al iniciar el Backend
+El puerto 8000 está ocupado por otro proceso. Identifícalo y detenlo:
+```bash
+# Ver qué ocupa el puerto 8000
+lsof -i :8000
+# O detener contenedores Docker que puedan estar usándolo
+docker ps | grep 8000
+docker stop <nombre-del-contenedor>
+```
+
+### `ERESOLVE` al hacer `npm install` en el Dashboard
 Usa la flag `--legacy-peer-deps`:
 ```bash
 npm install --legacy-peer-deps
 ```
 
-### Error `signal: aborted (core dumped)` en Docker (Linux)
+### `signal: aborted (core dumped)` en Docker (Linux)
 Docker Desktop se quedó sin memoria. Cambia al Docker Engine nativo:
 ```bash
 docker context use default
@@ -203,5 +225,6 @@ docker ps | grep db
 ```
 Si no aparece, levántalo con:
 ```bash
-cd saleor-platform && docker compose up -d db
+cd saleor-platform
+docker compose up -d db
 ```

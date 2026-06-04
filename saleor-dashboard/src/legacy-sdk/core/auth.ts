@@ -143,16 +143,21 @@ export interface AuthSDK {
 }
 
 export const auth = ({ apolloClient: client }: SaleorClientInternals): AuthSDK => {
+  const writeAuthState = (query, authenticating: boolean) =>
+    client.writeQuery({
+      query,
+      data: {
+        user: null,
+        authenticated: false,
+        authenticating,
+      },
+    });
+
   const login: AuthSDK["login"] = ({ includeDetails = true, ...opts }) => {
     const query = includeDetails ? USER : USER_WITHOUT_DETAILS;
     const loginMutation = includeDetails ? LOGIN : LOGIN_WITHOUT_DETAILS;
 
-    client.writeQuery({
-      query,
-      data: {
-        authenticating: true,
-      },
-    });
+    writeAuthState(query, true);
 
     return client.mutate<LoginMutation, LoginMutationVariables>({
       mutation: loginMutation,
@@ -166,12 +171,7 @@ export const auth = ({ apolloClient: client }: SaleorClientInternals): AuthSDK =
             refreshToken: data.tokenCreate.refreshToken,
           });
         } else {
-          client.writeQuery({
-            query,
-            data: {
-              authenticating: false,
-            },
-          });
+          writeAuthState(query, false);
         }
       },
     });
@@ -182,12 +182,7 @@ export const auth = ({ apolloClient: client }: SaleorClientInternals): AuthSDK =
 
     storage.clear();
 
-    client.writeQuery({
-      query: USER,
-      data: {
-        authenticating: false,
-      },
-    });
+    writeAuthState(USER, false);
 
     client.resetStore();
 
@@ -300,12 +295,7 @@ export const auth = ({ apolloClient: client }: SaleorClientInternals): AuthSDK =
   };
 
   const getExternalAccessToken: AuthSDK["getExternalAccessToken"] = opts => {
-    client.writeQuery({
-      query: USER,
-      data: {
-        authenticating: true,
-      },
-    });
+    writeAuthState(USER, true);
 
     return client.mutate<
       ExternalObtainAccessTokensMutation,
@@ -327,12 +317,7 @@ export const auth = ({ apolloClient: client }: SaleorClientInternals): AuthSDK =
             refreshToken: data.externalObtainAccessTokens.refreshToken,
           });
         } else {
-          client.writeQuery({
-            query: USER,
-            data: {
-              authenticating: false,
-            },
-          });
+          writeAuthState(USER, false);
         }
       },
     });

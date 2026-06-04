@@ -919,7 +919,12 @@ BUILTIN_PLUGINS = [
     "saleor.plugins.user_email.plugin.UserEmailPlugin",
     "saleor.plugins.admin_email.plugin.AdminEmailPlugin",
     "saleor.plugins.sendgrid.plugin.DeprecatedSendgridEmailPlugin",
-    "saleor.plugins.openid_connect.plugin.OpenIDConnectPlugin",
+    (
+        "saleor.plugins.google_oidc.plugin.GoogleOIDCPlugin"
+        if os.environ.get("GOOGLE_OIDC_CLIENT_ID")
+        and os.environ.get("GOOGLE_OIDC_CLIENT_SECRET")
+        else "saleor.plugins.openid_connect.plugin.OpenIDConnectPlugin"
+    ),
 ]
 
 # Plugin discovery

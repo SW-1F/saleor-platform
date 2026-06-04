@@ -78,7 +78,7 @@ export default defineConfig(({ command, mode }) => {
       bundler: "vite",
     }),
     createHtmlPlugin({
-      entry: path.resolve(__dirname, "src", "index.tsx"),
+      entry: "index.tsx",
       template: "index.html",
       inject: {
         data: {

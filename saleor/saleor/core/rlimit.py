@@ -1,8 +1,15 @@
-import resource
+try:
+    import resource
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
 from django.core.exceptions import ImproperlyConfigured
 
-RLIMIT_TYPE = resource.RLIMIT_DATA
+if HAS_RESOURCE:
+    RLIMIT_TYPE = resource.RLIMIT_DATA
+else:
+    RLIMIT_TYPE = None
 
 
 def is_soft_limit_set_without_hard_limit(soft_limit_in_MB, hard_limit_in_MB):
@@ -22,6 +29,8 @@ def validate_and_set_rlimit(soft_limit_in_MB, hard_limit_in_MB):
     the function sets the limits to infinity (no limit).
     If the soft limit is reached, the process will raise a `MemoryError`.
     """
+    if not HAS_RESOURCE:
+        return
 
     try:
         soft_limit_in_MB = int(soft_limit_in_MB) if soft_limit_in_MB else None

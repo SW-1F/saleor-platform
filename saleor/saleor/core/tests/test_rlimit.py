@@ -1,8 +1,15 @@
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
+
 from unittest.mock import patch
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
+
+if resource is None:
+    pytestmark = pytest.mark.skip(reason="resource module is not supported on Windows")
 
 from ..rlimit import RLIMIT_TYPE, validate_and_set_rlimit
 

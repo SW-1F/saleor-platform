@@ -1,0 +1,154 @@
+# Stack COMPLETO de Saleor para desarrollo/pruebas locales.
+# Levanta todo (y se auto-inicializa) con un solo comando:
+#   docker compose -f docker-compose.full.yml up
+#
+# Servicios:
+#   - db        Postgres 15
+#   - cache     Valkey 8.1 (compatible con Redis, para Celery)
+#   - mailpit   captura de correos (UI en http://localhost:8025)
+#   - init      one-shot: migraciones + datos de ejemplo + mock de cupones, luego termina
+#   - api       Saleor Core (imagen oficial 3.23, alineada al dashboard 3.23) -> http://localhost:8000/graphql/
+#   - worker    Celery (tareas en segundo plano)
+#   - dashboard panel de administración (dev server con hot-reload) -> http://localhost:9000
+
+x-saleor-env: &saleor-env
+  DATABASE_URL: postgres://saleor:saleor@db/saleor
+  SECRET_KEY: changeme-dev-only
+  DEFAULT_FROM_EMAIL: noreply@example.com
+  CELERY_BROKER_URL: redis://cache:6379/1
+  EMAIL_URL: smtp://mailpit:1025
+  ALLOWED_HOSTS: localhost,127.0.0.1,api
+  # Permite que el dashboard (origen localhost:9000) haga consultas GraphQL.
+  # "*" es cómodo para desarrollo local; en producción se restringe.
+  ALLOWED_GRAPHQL_ORIGINS: "*"
+
+services:
+  db:
+    image: library/postgres:15-alpine
+    ports:
+      - 5432:5432
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    volumes:
+      - saleor-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=saleor
+      - POSTGRES_PASSWORD=saleor
+
+  cache:
+    image: valkey/valkey:8.1-alpine
+    ports:
+      - 6379:6379
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    volumes:
+      - saleor-cache:/data
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - 1025:1025 # servidor SMTP
+      - 8025:8025 # interfaz web (revisar correos)
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+
+  # Inicialización automática (se ejecuta una vez y termina):
+  #  1) migraciones
+  #  2) populatedb + admin SOLO si la base está vacía (no duplica datos)
+  #  3) mock de cupones con uso > 0 (idempotente)
+  init:
+    image: ghcr.io/saleor/saleor:3.23
+    restart: "no"
+    networks:
+      - saleor-backend-tier
+    depends_on:
+      - db
+      - cache
+    environment: *saleor-env
+    volumes:
+      - saleor-media:/app/media
+      - ./scripts:/scripts:ro
+    command: >
+      sh -c "python3 manage.py migrate &&
+             (python3 manage.py shell -c 'from django.contrib.auth import get_user_model as G; import sys; sys.exit(0 if G().objects.exists() else 1)' ||
+              python3 manage.py populatedb --createsuperuser) &&
+             python3 manage.py shell < /scripts/mock_voucher_usage.py &&
+             echo 'Init completo: migraciones + datos + mock de cupones'"
+
+  api:
+    image: ghcr.io/saleor/saleor:3.23
+    ports:
+      - 8000:8000
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    depends_on:
+      db:
+        condition: service_started
+      cache:
+        condition: service_started
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - saleor-media:/app/media
+    # Se usa el CMD por defecto de la imagen (gunicorn + uvicorn worker), que
+    # maneja CORS en la capa ASGI. No usar `manage.py runserver` (WSGI).
+    environment:
+      <<: *saleor-env
+      STOREFRONT_URL: http://localhost:3000/
+      DASHBOARD_URL: http://localhost:9000/
+
+  worker:
+    image: ghcr.io/saleor/saleor:3.23
+    command: celery -A saleor --app=saleor.celeryconf:app worker --loglevel=info -B
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    depends_on:
+      cache:
+        condition: service_started
+      mailpit:
+        condition: service_started
+      init:
+        condition: service_completed_successfully
+    environment: *saleor-env
+    volumes:
+      - saleor-media:/app/media
+
+  # Dashboard en modo desarrollo: dev server de Vite con hot-reload.
+  # Monta el código fuente y recarga al editar. La 1ª vez instala dependencias
+  # (tarda); luego quedan cacheadas en el volumen dashboard-node-modules.
+  dashboard:
+    image: node:24
+    working_dir: /app
+    ports:
+      - 9000:9000
+    restart: unless-stopped
+    networks:
+      - saleor-backend-tier
+    environment:
+      - API_URL=http://localhost:8000/graphql/
+      - APP_MOUNT_URI=/
+    volumes:
+      - ./saleor-dashboard:/app
+      - dashboard-node-modules:/app/node_modules
+    command: >
+      sh -c "corepack enable &&
+             corepack prepare pnpm@10 --activate &&
+             (test -x node_modules/.bin/vite || pnpm install --no-frozen-lockfile) &&
+             pnpm exec vite --host 0.0.0.0 --port 9000"
+
+volumes:
+  saleor-db:
+    driver: local
+  saleor-cache:
+    driver: local
+  saleor-media:
+  dashboard-node-modules:
+
+networks:
+  saleor-backend-tier:
+    driver: bridge

@@ -27,6 +27,7 @@ import { Box, Button } from "@saleor/macaw-ui-next";
 import { useState } from "react";
 import { FormattedMessage, useIntl } from "react-intl";
 
+import CouponPracticeButton from "../CouponPracticeButton";
 import { VoucherListDatagrid } from "../VoucherListDatagrid";
 import {
   createFilterStructure,
@@ -151,6 +152,7 @@ const VoucherListPage = ({
         />
 
         <VoucherListDatagrid filterDependency={filterDependency} {...listProps} />
+        <CouponPracticeButton />
       </DashboardCard>
     </ListPageLayout>
   );

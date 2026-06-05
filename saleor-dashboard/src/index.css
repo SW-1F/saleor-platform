@@ -1,3 +1,10 @@
+:root {
+  /* Azul principal — botones, highlights */
+  --mu-colors-background-button-default-primary: #1e40af !important;
+  --mu-colors-text-default1: #002088 !important;
+  --mu-colors-background-default2: #c7dbf6 !important;
+}
+
 #portal {
   position: fixed;
   top: 0;

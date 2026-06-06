@@ -1,13 +1,13 @@
 # Stack COMPLETO de Saleor para desarrollo/pruebas locales.
 # Levanta todo (y se auto-inicializa) con un solo comando:
-#   docker compose -f docker-compose.full.yml up
+#   docker compose -f docker-compose.full.yml up --build
 #
 # Servicios:
 #   - db        Postgres 15
 #   - cache     Valkey 8.1 (compatible con Redis, para Celery)
 #   - mailpit   captura de correos (UI en http://localhost:8025)
 #   - init      one-shot: migraciones + datos de ejemplo + mock de cupones, luego termina
-#   - api       Saleor Core (imagen oficial 3.23, alineada al dashboard 3.23) -> http://localhost:8000/graphql/
+#   - api       Saleor Core (construido desde ./saleor para incluir el plugin de Google) -> http://localhost:8000/graphql/
 #   - worker    Celery (tareas en segundo plano)
 #   - dashboard panel de administración (dev server con hot-reload) -> http://localhost:9000
 
@@ -21,6 +21,16 @@ x-saleor-env: &saleor-env
   # Permite que el dashboard (origen localhost:9000) haga consultas GraphQL.
   # "*" es cómodo para desarrollo local; en producción se restringe.
   ALLOWED_GRAPHQL_ORIGINS: "*"
+  # --- Login con Google (OIDC) ---
+  # Estos valores se leen de un archivo .env en esta misma carpeta (cópialo de
+  # .env.example). Si CLIENT_ID/SECRET están vacíos, Saleor usa el OIDC genérico
+  # y NO aparece el botón de Google. Ver GOOGLE_LOGIN_SETUP.md.
+  GOOGLE_OIDC_CLIENT_ID: "${GOOGLE_OIDC_CLIENT_ID:-}"
+  GOOGLE_OIDC_CLIENT_SECRET: "${GOOGLE_OIDC_CLIENT_SECRET:-}"
+  # Correos que entran como STAFF (admin), separados por coma. Ej: tu_correo@gmail.com
+  GOOGLE_OIDC_STAFF_EMAILS: "${GOOGLE_OIDC_STAFF_EMAILS:-}"
+  # Dominios cuyos usuarios entran como STAFF, separados por coma. Ej: gmail.com
+  GOOGLE_OIDC_STAFF_DOMAINS: "${GOOGLE_OIDC_STAFF_DOMAINS:-}"
 
 services:
   db:
@@ -60,7 +70,8 @@ services:
   #  2) populatedb + admin SOLO si la base está vacía (no duplica datos)
   #  3) mock de cupones con uso > 0 (idempotente)
   init:
-    image: ghcr.io/saleor/saleor:3.23
+    # Reutiliza la imagen que construye el servicio `api` (mismo tag).
+    image: saleor-local:dev
     restart: "no"
     networks:
       - saleor-backend-tier
@@ -79,7 +90,9 @@ services:
              echo 'Init completo: migraciones + datos + mock de cupones'"
 
   api:
-    image: ghcr.io/saleor/saleor:3.23
+    build:
+      context: ./saleor
+    image: saleor-local:dev
     ports:
       - 8000:8000
     restart: unless-stopped
@@ -94,15 +107,16 @@ services:
         condition: service_completed_successfully
     volumes:
       - saleor-media:/app/media
-    # Se usa el CMD por defecto de la imagen (gunicorn + uvicorn worker), que
-    # maneja CORS en la capa ASGI. No usar `manage.py runserver` (WSGI).
+    # Se usa el CMD por defecto de la imagen (uvicorn ASGI), que maneja CORS en la
+    # capa ASGI. No usar `manage.py runserver` (WSGI).
     environment:
       <<: *saleor-env
       STOREFRONT_URL: http://localhost:3000/
       DASHBOARD_URL: http://localhost:9000/
 
   worker:
-    image: ghcr.io/saleor/saleor:3.23
+    # Reutiliza la imagen que construye el servicio `api` (mismo tag).
+    image: saleor-local:dev
     command: celery -A saleor --app=saleor.celeryconf:app worker --loglevel=info -B
     restart: unless-stopped
     networks:
@@ -119,7 +133,7 @@ services:
       - saleor-media:/app/media
 
   # Dashboard en modo desarrollo: dev server de Vite con hot-reload.
-  # Monta el código fuente y recarga al editar. La 1ª vez instala dependencias
+  # Monta el código fuente y recarga al editar. La 1a vez instala dependencias
   # (tarda); luego quedan cacheadas en el volumen dashboard-node-modules.
   dashboard:
     image: node:24

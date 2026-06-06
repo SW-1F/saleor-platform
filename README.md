@@ -136,7 +136,6 @@ npm install --legacy-peer-deps @material-ui/icons@4.11.3 @material-ui/lab@4.0.0-
 
 > [!NOTE]
 > `HUSKY=0` desactiva los git hooks de Husky durante la instalación.
-> Es necesario porque `saleor-dashboard` ya no tiene su propio repositorio git independiente.
 
 ### 4. Levantar infraestructura y migrar la base de datos
 
